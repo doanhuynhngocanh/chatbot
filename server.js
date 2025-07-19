@@ -22,6 +22,12 @@ const supabaseKey = process.env.SUPABASE_ANON_KEY;
 
 let supabase = null;
 
+console.log('🔍 Supabase Environment Check:');
+console.log('SUPABASE_URL:', supabaseUrl ? '✅ Set' : '❌ Not set');
+console.log('SUPABASE_ANON_KEY:', supabaseKey ? '✅ Set' : '❌ Not set');
+console.log('NODE_ENV:', process.env.NODE_ENV || 'development');
+console.log('VERCEL:', process.env.VERCEL || 'false');
+
 if (!supabaseUrl || !supabaseKey) {
   console.error('❌ ERROR: Supabase credentials not set');
   console.error('Please set SUPABASE_URL and SUPABASE_ANON_KEY in environment variables');
@@ -30,8 +36,8 @@ if (!supabaseUrl || !supabaseKey) {
   try {
     supabase = createClient(supabaseUrl, supabaseKey);
     console.log('✅ Supabase client initialized successfully');
-    console.log('🔗 Supabase URL:', supabaseUrl);
-    console.log('🔑 Supabase Key:', supabaseKey ? 'Set' : 'Not set');
+    console.log('🔗 Supabase URL (first 20 chars):', supabaseUrl.substring(0, 20) + '...');
+    console.log('🔑 Supabase Key (first 20 chars):', supabaseKey.substring(0, 20) + '...');
   } catch (error) {
     console.error('❌ Error initializing Supabase client:', error);
     supabase = null;
@@ -172,7 +178,10 @@ app.post('/api/chat', async (req, res) => {
         };
 
         console.log('💾 Attempting to save conversation to Supabase...');
-        console.log('📊 Conversation data:', JSON.stringify(conversationData, null, 2));
+        console.log('📊 Session ID:', sessionId);
+        console.log('📊 Messages count:', Object.values(conversations[sessionId]).length);
+        console.log('📊 Environment:', process.env.NODE_ENV || 'development');
+        console.log('📊 Vercel:', process.env.VERCEL || 'false');
 
         // Check if conversation already exists
         const { data: existingConversation, error: selectError } = await supabase
@@ -377,12 +386,84 @@ app.get('/api/health', (req, res) => {
     status: 'OK',
     timestamp: new Date().toISOString(),
     openaiKeySet: !!process.env.OPENAI_API_KEY,
+    supabaseUrlSet: !!process.env.SUPABASE_URL,
+    supabaseKeySet: !!process.env.SUPABASE_ANON_KEY,
+    supabaseClient: !!supabase,
     environment: process.env.NODE_ENV || 'development',
+    vercel: process.env.VERCEL || 'false',
     uptime: process.uptime()
   };
   
   console.log('🏥 Health check:', health);
   res.json(health);
+});
+
+// Supabase test endpoint
+app.get('/api/test-supabase', async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.json({
+        status: 'ERROR',
+        message: 'Supabase client not initialized',
+        supabaseUrlSet: !!process.env.SUPABASE_URL,
+        supabaseKeySet: !!process.env.SUPABASE_ANON_KEY
+      });
+    }
+
+    // Test connection
+    const { data, error } = await supabase
+      .from('conversations')
+      .select('count')
+      .limit(1);
+
+    if (error) {
+      return res.json({
+        status: 'ERROR',
+        message: 'Database connection failed',
+        error: error.message,
+        code: error.code
+      });
+    }
+
+    // Test insert
+    const testData = {
+      conversation_id: 'vercel-test-' + Date.now(),
+      messages: [{ role: 'user', content: 'Test message', timestamp: new Date().toISOString() }]
+    };
+
+    const { data: insertData, error: insertError } = await supabase
+      .from('conversations')
+      .insert([testData])
+      .select();
+
+    if (insertError) {
+      return res.json({
+        status: 'ERROR',
+        message: 'Insert test failed',
+        error: insertError.message,
+        code: insertError.code
+      });
+    }
+
+    // Clean up
+    await supabase
+      .from('conversations')
+      .delete()
+      .eq('conversation_id', testData.conversation_id);
+
+    res.json({
+      status: 'SUCCESS',
+      message: 'Supabase connection and operations working correctly',
+      testRecordId: insertData[0].id
+    });
+
+  } catch (error) {
+    res.json({
+      status: 'ERROR',
+      message: 'Unexpected error',
+      error: error.message
+    });
+  }
 });
 
 // Catch-all route for any unmatched requests
