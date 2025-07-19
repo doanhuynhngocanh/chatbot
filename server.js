@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 const OpenAI = require('openai');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,6 +15,28 @@ const isVercel = process.env.VERCEL === '1';
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+// Initialize Supabase
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
+
+let supabase = null;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error('❌ ERROR: Supabase credentials not set');
+  console.error('Please set SUPABASE_URL and SUPABASE_ANON_KEY in environment variables');
+  console.error('Supabase integration will be disabled');
+} else {
+  try {
+    supabase = createClient(supabaseUrl, supabaseKey);
+    console.log('✅ Supabase client initialized successfully');
+    console.log('🔗 Supabase URL:', supabaseUrl);
+    console.log('🔑 Supabase Key:', supabaseKey ? 'Set' : 'Not set');
+  } catch (error) {
+    console.error('❌ Error initializing Supabase client:', error);
+    supabase = null;
+  }
+}
 
 // Check if OpenAI API key is set
 if (!process.env.OPENAI_API_KEY) {
@@ -140,6 +163,59 @@ app.post('/api/chat', async (req, res) => {
     // Print AI response to console
     console.log(`🤖 AI (${sessionId}): ${aiResponse}`);
 
+    // Save conversation to Supabase
+    if (supabase) {
+      try {
+        const conversationData = {
+          conversation_id: sessionId,
+          messages: Object.values(conversations[sessionId])
+        };
+
+        console.log('💾 Attempting to save conversation to Supabase...');
+        console.log('📊 Conversation data:', JSON.stringify(conversationData, null, 2));
+
+        // Check if conversation already exists
+        const { data: existingConversation, error: selectError } = await supabase
+          .from('conversations')
+          .select('*')
+          .eq('conversation_id', sessionId)
+          .single();
+
+        if (selectError && selectError.code !== 'PGRST116') {
+          console.error('❌ Error checking existing conversation:', selectError);
+        }
+
+        if (existingConversation) {
+          // Update existing conversation
+          const { error: updateError } = await supabase
+            .from('conversations')
+            .update({ messages: conversationData.messages })
+            .eq('conversation_id', sessionId);
+
+          if (updateError) {
+            console.error('❌ Error updating conversation in Supabase:', updateError);
+          } else {
+            console.log('✅ Conversation updated in Supabase');
+          }
+        } else {
+          // Insert new conversation
+          const { error: insertError } = await supabase
+            .from('conversations')
+            .insert([conversationData]);
+
+          if (insertError) {
+            console.error('❌ Error inserting conversation in Supabase:', insertError);
+          } else {
+            console.log('✅ New conversation saved to Supabase');
+          }
+        }
+      } catch (supabaseError) {
+        console.error('❌ Supabase error:', supabaseError);
+      }
+    } else {
+      console.log('⚠️ Supabase not available - conversation saved to local memory only');
+    }
+
     // Print conversation summary to console
     const conversationMessages = Object.values(conversations[sessionId]);
     console.log(`📊 Conversation ${sessionId} - Total messages: ${conversationMessages.length}`);
@@ -182,37 +258,100 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // API endpoint to get conversation history
-app.get('/api/conversation/:sessionId', (req, res) => {
+app.get('/api/conversation/:sessionId', async (req, res) => {
   const { sessionId } = req.params;
-  const conversation = conversations[sessionId] || {};
   
-  // Print specific conversation to console
-  console.log(`\n📖 GETTING CONVERSATION: ${sessionId}`);
-  if (Object.keys(conversation).length > 0) {
-    Object.keys(conversation).forEach(messageId => {
-      const msg = conversation[messageId];
-      const role = msg.role === 'user' ? '👤 USER' : '🤖 AI';
-      console.log(`   ${messageId}. ${role}: ${msg.content}`);
-    });
-  } else {
-    console.log('   No conversation found for this session.');
+  try {
+    let conversation = {};
+    
+    if (supabase) {
+      // Try to load from Supabase first
+      console.log('🔍 Attempting to load conversation from Supabase...');
+      const { data: supabaseConversation, error } = await supabase
+        .from('conversations')
+        .select('messages')
+        .eq('conversation_id', sessionId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error('❌ Error loading conversation from Supabase:', error);
+      }
+
+      if (supabaseConversation && supabaseConversation.messages) {
+        // Load from Supabase
+        conversation = supabaseConversation.messages.reduce((acc, msg, index) => {
+          acc[index.toString()] = msg;
+          return acc;
+        }, {});
+        
+        // Update local memory
+        conversations[sessionId] = conversation;
+        console.log('✅ Loaded conversation from Supabase');
+      } else {
+        // Fall back to local memory
+        conversation = conversations[sessionId] || {};
+        console.log('📝 Using local conversation data');
+      }
+    } else {
+      // Supabase not available, use local memory
+      conversation = conversations[sessionId] || {};
+      console.log('⚠️ Supabase not available - using local conversation data');
+    }
+    
+    // Print specific conversation to console
+    console.log(`\n📖 GETTING CONVERSATION: ${sessionId}`);
+    if (Object.keys(conversation).length > 0) {
+      Object.keys(conversation).forEach(messageId => {
+        const msg = conversation[messageId];
+        const role = msg.role === 'user' ? '👤 USER' : '🤖 AI';
+        console.log(`   ${messageId}. ${role}: ${msg.content}`);
+      });
+    } else {
+      console.log('   No conversation found for this session.');
+    }
+    
+    res.json({ conversation: Object.values(conversation) });
+    
+  } catch (error) {
+    console.error('❌ Error in conversation endpoint:', error);
+    res.status(500).json({ error: 'Failed to load conversation' });
   }
-  
-  res.json({ conversation: Object.values(conversation) });
 });
 
 // API endpoint to clear conversation
-app.delete('/api/conversation/:sessionId', (req, res) => {
+app.delete('/api/conversation/:sessionId', async (req, res) => {
   const { sessionId } = req.params;
   
-  // Print what's being deleted
-  if (conversations[sessionId]) {
-    console.log(`\n🗑️ DELETING CONVERSATION: ${sessionId}`);
-    console.log(`   Messages deleted: ${Object.keys(conversations[sessionId]).length}`);
+  try {
+    // Delete from Supabase
+    if (supabase) {
+      const { error: supabaseError } = await supabase
+        .from('conversations')
+        .delete()
+        .eq('conversation_id', sessionId);
+
+      if (supabaseError) {
+        console.error('❌ Error deleting conversation from Supabase:', supabaseError);
+      } else {
+        console.log('✅ Conversation deleted from Supabase');
+      }
+    } else {
+      console.log('⚠️ Supabase not available - skipping database deletion');
+    }
+    
+    // Delete from local memory
+    if (conversations[sessionId]) {
+      console.log(`\n🗑️ DELETING CONVERSATION: ${sessionId}`);
+      console.log(`   Messages deleted: ${Object.keys(conversations[sessionId]).length}`);
+    }
+    
+    delete conversations[sessionId];
+    res.json({ message: 'Conversation cleared from memory and database' });
+    
+  } catch (error) {
+    console.error('❌ Error in delete conversation endpoint:', error);
+    res.status(500).json({ error: 'Failed to clear conversation' });
   }
-  
-  delete conversations[sessionId];
-  res.json({ message: 'Conversation cleared' });
 });
 
 // API endpoint to get all conversations (for debugging)
