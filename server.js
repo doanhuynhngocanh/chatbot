@@ -17,7 +17,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
-// Store conversations in memory (in production, use a database)
+// Store conversations in memory as a dictionary
 const conversations = {};
 
 // Function to print all conversations to console
@@ -31,14 +31,24 @@ function printConversationsToConsole() {
   } else {
     Object.keys(conversations).forEach(sessionId => {
       console.log(`\n🔗 Session: ${sessionId}`);
-      console.log(`   Messages: ${conversations[sessionId].length}`);
-      conversations[sessionId].forEach((msg, index) => {
+      console.log(`   Messages: ${Object.keys(conversations[sessionId]).length}`);
+      Object.keys(conversations[sessionId]).forEach(messageId => {
+        const msg = conversations[sessionId][messageId];
         const role = msg.role === 'user' ? '👤 USER' : '🤖 AI';
-        console.log(`   ${index + 1}. ${role}: ${msg.content}`);
+        console.log(`   ${messageId}. ${role}: ${msg.content}`);
       });
     });
   }
   console.log('='.repeat(50) + '\n');
+}
+
+// Function to print raw dictionary structure
+function printRawDictionary() {
+  console.log('\n' + '='.repeat(60));
+  console.log('🗂️ RAW CONVERSATION DICTIONARY STRUCTURE:');
+  console.log('='.repeat(60));
+  console.log(JSON.stringify(conversations, null, 2));
+  console.log('='.repeat(60) + '\n');
 }
 
 // Routes
@@ -57,15 +67,18 @@ app.post('/api/chat', async (req, res) => {
 
     // Initialize conversation for this session if it doesn't exist
     if (!conversations[sessionId]) {
-      conversations[sessionId] = [];
+      conversations[sessionId] = {};
     }
 
-    // Add user message to conversation
-    conversations[sessionId].push({
+    // Generate unique message ID
+    const messageId = Date.now().toString();
+    
+    // Add user message to conversation dictionary
+    conversations[sessionId][messageId] = {
       role: 'user',
       content: message,
       timestamp: new Date().toISOString()
-    });
+    };
 
     // Print user message to console
     console.log(`\n👤 USER (${sessionId}): ${message}`);
@@ -73,7 +86,7 @@ app.post('/api/chat', async (req, res) => {
     // Prepare messages for OpenAI (include conversation history)
     const messages = [
       { role: 'system', content: 'You are a helpful AI assistant. Be concise and friendly in your responses.' },
-      ...conversations[sessionId].map(msg => ({
+      ...Object.values(conversations[sessionId]).map(msg => ({
         role: msg.role,
         content: msg.content
       }))
@@ -89,25 +102,30 @@ app.post('/api/chat', async (req, res) => {
 
     const aiResponse = completion.choices[0].message.content;
 
-    // Add AI response to conversation
-    conversations[sessionId].push({
+    // Add AI response to conversation dictionary
+    const aiMessageId = (Date.now() + 1).toString();
+    conversations[sessionId][aiMessageId] = {
       role: 'assistant',
       content: aiResponse,
       timestamp: new Date().toISOString()
-    });
+    };
 
     // Print AI response to console
     console.log(`🤖 AI (${sessionId}): ${aiResponse}`);
 
     // Print conversation summary to console
-    console.log(`📊 Conversation ${sessionId} - Total messages: ${conversations[sessionId].length}`);
-    console.log(`   User messages: ${conversations[sessionId].filter(msg => msg.role === 'user').length}`);
-    console.log(`   AI messages: ${conversations[sessionId].filter(msg => msg.role === 'assistant').length}`);
+    const conversationMessages = Object.values(conversations[sessionId]);
+    console.log(`📊 Conversation ${sessionId} - Total messages: ${conversationMessages.length}`);
+    console.log(`   User messages: ${conversationMessages.filter(msg => msg.role === 'user').length}`);
+    console.log(`   AI messages: ${conversationMessages.filter(msg => msg.role === 'assistant').length}`);
+    
+    // Print raw dictionary structure
+    printRawDictionary();
 
     // Return the response
     res.json({
       response: aiResponse,
-      conversation: conversations[sessionId]
+      conversation: Object.values(conversations[sessionId])
     });
 
   } catch (error) {
@@ -122,32 +140,52 @@ app.post('/api/chat', async (req, res) => {
 // API endpoint to get conversation history
 app.get('/api/conversation/:sessionId', (req, res) => {
   const { sessionId } = req.params;
-  const conversation = conversations[sessionId] || [];
+  const conversation = conversations[sessionId] || {};
   
   // Print specific conversation to console
   console.log(`\n📖 GETTING CONVERSATION: ${sessionId}`);
-  if (conversation.length > 0) {
-    conversation.forEach((msg, index) => {
+  if (Object.keys(conversation).length > 0) {
+    Object.keys(conversation).forEach(messageId => {
+      const msg = conversation[messageId];
       const role = msg.role === 'user' ? '👤 USER' : '🤖 AI';
-      console.log(`   ${index + 1}. ${role}: ${msg.content}`);
+      console.log(`   ${messageId}. ${role}: ${msg.content}`);
     });
   } else {
     console.log('   No conversation found for this session.');
   }
   
-  res.json({ conversation });
+  res.json({ conversation: Object.values(conversation) });
 });
 
 // API endpoint to clear conversation
 app.delete('/api/conversation/:sessionId', (req, res) => {
   const { sessionId } = req.params;
+  
+  // Print what's being deleted
+  if (conversations[sessionId]) {
+    console.log(`\n🗑️ DELETING CONVERSATION: ${sessionId}`);
+    console.log(`   Messages deleted: ${Object.keys(conversations[sessionId]).length}`);
+  }
+  
   delete conversations[sessionId];
   res.json({ message: 'Conversation cleared' });
 });
 
 // API endpoint to get all conversations (for debugging)
 app.get('/api/conversations', (req, res) => {
+  // Print all conversations to console
+  printConversationsToConsole();
   res.json({ conversations });
+});
+
+// API endpoint to get raw dictionary structure
+app.get('/api/conversations/raw', (req, res) => {
+  // Print raw dictionary to console
+  printRawDictionary();
+  res.json({ 
+    message: 'Raw dictionary printed to console',
+    conversations: conversations 
+  });
 });
 
 app.listen(PORT, () => {
