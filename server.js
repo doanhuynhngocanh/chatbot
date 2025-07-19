@@ -12,6 +12,12 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Check if OpenAI API key is set
+if (!process.env.OPENAI_API_KEY) {
+  console.error('❌ ERROR: OPENAI_API_KEY is not set in environment variables');
+  console.error('Please set your OpenAI API key in the .env file or environment variables');
+}
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -129,10 +135,27 @@ app.post('/api/chat', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error('❌ Error in chat endpoint:', error);
+    
+    // Provide more specific error messages
+    let errorMessage = 'Failed to process message';
+    let errorDetails = error.message;
+    
+    if (error.message.includes('401')) {
+      errorMessage = 'OpenAI API key is invalid or expired';
+      errorDetails = 'Please check your OPENAI_API_KEY in environment variables';
+    } else if (error.message.includes('429')) {
+      errorMessage = 'OpenAI API rate limit exceeded';
+      errorDetails = 'Please wait a moment and try again';
+    } else if (error.message.includes('ENOTFOUND')) {
+      errorMessage = 'Network error - cannot reach OpenAI API';
+      errorDetails = 'Please check your internet connection';
+    }
+    
     res.status(500).json({ 
-      error: 'Failed to process message',
-      details: error.message 
+      error: errorMessage,
+      details: errorDetails,
+      originalError: error.message
     });
   }
 });
@@ -186,6 +209,20 @@ app.get('/api/conversations/raw', (req, res) => {
     message: 'Raw dictionary printed to console',
     conversations: conversations 
   });
+});
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  const health = {
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    openaiKeySet: !!process.env.OPENAI_API_KEY,
+    environment: process.env.NODE_ENV || 'development',
+    uptime: process.uptime()
+  };
+  
+  console.log('🏥 Health check:', health);
+  res.json(health);
 });
 
 // For Vercel deployment, export the app
