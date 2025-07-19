@@ -15,6 +15,7 @@ const openai = new OpenAI({
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname)));
 
 // Store conversations in memory as a dictionary
 const conversations = {};
@@ -50,7 +51,10 @@ function printRawDictionary() {
   console.log('='.repeat(60) + '\n');
 }
 
-// API Routes only (no static file serving)
+// Routes
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // API endpoint to handle chat messages
 app.post('/api/chat', async (req, res) => {
@@ -184,8 +188,12 @@ app.get('/api/conversations/raw', (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Backend API server running on http://localhost:${PORT}`);
-  console.log('This server handles API requests only');
-  console.log('Frontend should be running on http://localhost:3001');
-}); 
+// For Vercel deployment, export the app
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+    console.log('Make sure to set your OPENAI_API_KEY in the .env file');
+  });
+}
+
+module.exports = app; 
