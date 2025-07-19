@@ -38,8 +38,8 @@ app.use('/debug.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'debug.html'));
 });
 
-// Serve other static files
-app.use(express.static(path.join(__dirname)));
+// Serve static files from root directory
+app.use(express.static(__dirname));
 
 // Store conversations in memory as a dictionary
 const conversations = {};
@@ -249,6 +249,9 @@ if (process.env.NODE_ENV !== 'production') {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log('Make sure to set your OPENAI_API_KEY in the .env file');
   });
+} else {
+  // For Vercel production, just export the app
+  console.log('🚀 Server exported for Vercel deployment');
 }
 
 module.exports = app; 
