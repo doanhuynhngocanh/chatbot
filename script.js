@@ -1,10 +1,16 @@
 // Generate a unique session ID for this conversation
-const sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+let sessionId = localStorage.getItem('chatbot_session_id');
+if (!sessionId) {
+    sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('chatbot_session_id', sessionId);
+}
+console.log('📝 Using session ID:', sessionId);
 
 // DOM elements
 const chatMessages = document.getElementById('chatMessages');
 const userInput = document.getElementById('userInput');
 const sendButton = document.getElementById('sendButton');
+const clearButton = document.getElementById('clearButton');
 
 // Add event listeners
 sendButton.addEventListener('click', sendMessage);
@@ -13,6 +19,7 @@ userInput.addEventListener('keypress', (e) => {
         sendMessage();
     }
 });
+clearButton.addEventListener('click', clearConversation);
 
 // Function to add a message to the chat
 function addMessage(content, isUser = false) {
@@ -128,6 +135,43 @@ async function sendMessage() {
     }
 }
 
+// Function to clear conversation
+async function clearConversation() {
+    if (confirm('Are you sure you want to clear this conversation? This will delete it from the database.')) {
+        try {
+            const currentUrl = window.location.origin;
+            const deleteUrl = `${currentUrl}/api/conversation/${sessionId}`;
+            
+            console.log('🗑️ Clearing conversation:', deleteUrl);
+            
+            const response = await fetch(deleteUrl, {
+                method: 'DELETE'
+            });
+            
+            if (response.ok) {
+                console.log('✅ Conversation cleared from database');
+                
+                // Clear the chat display
+                chatMessages.innerHTML = '';
+                
+                // Add welcome message
+                addMessage('Hello! I\'m your AI assistant. How can I help you today?', false);
+                
+                // Generate new session ID
+                sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('chatbot_session_id', sessionId);
+                console.log('📝 New session ID:', sessionId);
+                
+            } else {
+                console.error('❌ Error clearing conversation');
+            }
+            
+        } catch (error) {
+            console.error('❌ Error clearing conversation:', error);
+        }
+    }
+}
+
 // Add some CSS for typing indicator
 const style = document.createElement('style');
 style.textContent = `
@@ -163,4 +207,44 @@ async function testConnection() {
 }
 
 // Run connection test when page loads
-document.addEventListener('DOMContentLoaded', testConnection); 
+document.addEventListener('DOMContentLoaded', async () => {
+    await testConnection();
+    await loadPreviousConversation();
+});
+
+// Function to load previous conversation
+async function loadPreviousConversation() {
+    try {
+        const currentUrl = window.location.origin;
+        const conversationUrl = `${currentUrl}/api/conversation/${sessionId}`;
+        
+        console.log('📖 Loading previous conversation from:', conversationUrl);
+        
+        const response = await fetch(conversationUrl);
+        
+        if (response.ok) {
+            const data = await response.json();
+            
+            if (data.conversation && data.conversation.length > 0) {
+                console.log('✅ Loaded previous conversation:', data.conversation.length, 'messages');
+                
+                // Clear existing messages
+                chatMessages.innerHTML = '';
+                
+                // Add all previous messages
+                data.conversation.forEach(msg => {
+                    addMessage(msg.content, msg.role === 'user');
+                });
+                
+                addMessage('🔄 Conversation loaded from previous session', false);
+            } else {
+                console.log('📝 No previous conversation found');
+            }
+        } else {
+            console.log('📝 No previous conversation available');
+        }
+        
+    } catch (error) {
+        console.error('❌ Error loading previous conversation:', error);
+    }
+} 
