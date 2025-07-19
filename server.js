@@ -21,6 +21,24 @@ if (!process.env.OPENAI_API_KEY) {
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Serve static files with proper MIME types
+app.use('/style.css', (req, res) => {
+  res.setHeader('Content-Type', 'text/css');
+  res.sendFile(path.join(__dirname, 'style.css'));
+});
+
+app.use('/script.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript');
+  res.sendFile(path.join(__dirname, 'script.js'));
+});
+
+app.use('/debug.html', (req, res) => {
+  res.setHeader('Content-Type', 'text/html');
+  res.sendFile(path.join(__dirname, 'debug.html'));
+});
+
+// Serve other static files
 app.use(express.static(path.join(__dirname)));
 
 // Store conversations in memory as a dictionary

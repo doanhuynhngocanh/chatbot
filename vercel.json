@@ -12,8 +12,30 @@
       "dest": "/server.js"
     },
     {
+      "src": "/style.css",
+      "dest": "/style.css"
+    },
+    {
+      "src": "/script.js",
+      "dest": "/script.js"
+    },
+    {
+      "src": "/debug.html",
+      "dest": "/debug.html"
+    },
+    {
       "src": "/(.*)",
       "dest": "/server.js"
     }
-  ]
+  ],
+  "functions": {
+    "server.js": {
+      "includeFiles": [
+        "index.html",
+        "style.css",
+        "script.js",
+        "debug.html"
+      ]
+    }
+  }
 } 
