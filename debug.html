@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .debug-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .warning { background: #fff3cd; color: #856404; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Chatbot Debug Page</h1>
+    
+    <div class="debug-section">
+        <h2>📊 Environment Information</h2>
+        <div id="envInfo"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h2>🔍 API Connection Test</h2>
+        <button onclick="testHealth()">Test Health Endpoint</button>
+        <button onclick="testChat()">Test Chat Endpoint</button>
+        <div id="apiResults"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h2>🌐 Network Information</h2>
+        <div id="networkInfo"></div>
+    </div>
+
+    <script>
+        // Display environment information
+        function showEnvInfo() {
+            const envInfo = document.getElementById('envInfo');
+            envInfo.innerHTML = `
+                <p><strong>Current URL:</strong> ${window.location.href}</p>
+                <p><strong>Origin:</strong> ${window.location.origin}</p>
+                <p><strong>User Agent:</strong> ${navigator.userAgent}</p>
+                <p><strong>Online:</strong> ${navigator.onLine ? 'Yes' : 'No'}</p>
+            `;
+        }
+
+        // Test health endpoint
+        async function testHealth() {
+            const results = document.getElementById('apiResults');
+            results.innerHTML = '<div class="status warning">Testing health endpoint...</div>';
+            
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                
+                const statusClass = response.ok ? 'success' : 'error';
+                results.innerHTML = `
+                    <div class="status ${statusClass}">
+                        <strong>Health Check Result:</strong><br>
+                        Status: ${response.status}<br>
+                        OpenAI Key Set: ${data.openaiKeySet ? 'Yes' : 'No'}<br>
+                        Environment: ${data.environment}<br>
+                        Uptime: ${data.uptime}s
+                    </div>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                results.innerHTML = `
+                    <div class="status error">
+                        <strong>Health Check Failed:</strong><br>
+                        Error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // Test chat endpoint
+        async function testChat() {
+            const results = document.getElementById('apiResults');
+            results.innerHTML = '<div class="status warning">Testing chat endpoint...</div>';
+            
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: 'Hello, this is a test message',
+                        sessionId: 'debug_test_' + Date.now()
+                    })
+                });
+                
+                const data = await response.json();
+                
+                const statusClass = response.ok ? 'success' : 'error';
+                results.innerHTML = `
+                    <div class="status ${statusClass}">
+                        <strong>Chat Test Result:</strong><br>
+                        Status: ${response.status}<br>
+                        Has Response: ${data.response ? 'Yes' : 'No'}<br>
+                        Response Length: ${data.response ? data.response.length : 0} characters
+                    </div>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                results.innerHTML = `
+                    <div class="status error">
+                        <strong>Chat Test Failed:</strong><br>
+                        Error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // Show network information
+        function showNetworkInfo() {
+            const networkInfo = document.getElementById('networkInfo');
+            networkInfo.innerHTML = `
+                <p><strong>Protocol:</strong> ${window.location.protocol}</p>
+                <p><strong>Host:</strong> ${window.location.host}</p>
+                <p><strong>Path:</strong> ${window.location.pathname}</p>
+                <p><strong>Connection Type:</strong> ${navigator.connection ? navigator.connection.effectiveType : 'Unknown'}</p>
+            `;
+        }
+
+        // Initialize page
+        showEnvInfo();
+        showNetworkInfo();
+    </script>
+</body>
+</html> 

@@ -60,8 +60,14 @@ async function sendMessage() {
         chatMessages.appendChild(typingDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
         
+        // Get the current URL to determine the API base URL
+        const currentUrl = window.location.origin;
+        const apiUrl = `${currentUrl}/api/chat`;
+        
+        console.log('🌐 Sending request to:', apiUrl);
+        
         // Send message to backend
-        const response = await fetch('/api/chat', {
+        const response = await fetch(apiUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -72,20 +78,29 @@ async function sendMessage() {
             })
         });
         
+        console.log('📡 Response status:', response.status);
+        
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errorText = await response.text();
+            console.error('❌ Server error:', errorText);
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
         }
         
         const data = await response.json();
+        console.log('✅ Response data:', data);
         
         // Remove typing indicator
         chatMessages.removeChild(typingDiv);
         
         // Add AI response to chat
-        addMessage(data.response);
+        if (data.response) {
+            addMessage(data.response);
+        } else {
+            throw new Error('No response from AI');
+        }
         
     } catch (error) {
-        console.error('Error:', error);
+        console.error('❌ Error in sendMessage:', error);
         
         // Remove typing indicator
         const typingDiv = document.querySelector('.typing');
@@ -93,8 +108,18 @@ async function sendMessage() {
             chatMessages.removeChild(typingDiv);
         }
         
-        // Show error message
-        addMessage('Sorry, I encountered an error. Please try again.');
+        // Show specific error message
+        let errorMessage = 'Sorry, I encountered an error. Please try again.';
+        
+        if (error.message.includes('401')) {
+            errorMessage = 'OpenAI API key is invalid. Please check your configuration.';
+        } else if (error.message.includes('429')) {
+            errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
+        } else if (error.message.includes('ENOTFOUND') || error.message.includes('fetch')) {
+            errorMessage = 'Network error. Please check your internet connection.';
+        }
+        
+        addMessage(errorMessage);
     } finally {
         // Re-enable input
         userInput.disabled = false;
@@ -111,4 +136,31 @@ style.textContent = `
         color: #666;
     }
 `;
-document.head.appendChild(style); 
+document.head.appendChild(style);
+
+// Test connection on page load
+async function testConnection() {
+    try {
+        const currentUrl = window.location.origin;
+        const healthUrl = `${currentUrl}/api/health`;
+        
+        console.log('🔍 Testing connection to:', healthUrl);
+        
+        const response = await fetch(healthUrl);
+        const data = await response.json();
+        
+        console.log('✅ Connection test successful:', data);
+        
+        if (!data.openaiKeySet) {
+            console.warn('⚠️ OpenAI API key not set on server');
+            addMessage('⚠️ Warning: OpenAI API key not configured on server', false);
+        }
+        
+    } catch (error) {
+        console.error('❌ Connection test failed:', error);
+        addMessage('⚠️ Warning: Cannot connect to server', false);
+    }
+}
+
+// Run connection test when page loads
+document.addEventListener('DOMContentLoaded', testConnection); 
