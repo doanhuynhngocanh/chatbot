@@ -11,7 +11,6 @@ const chatMessages = document.getElementById('chatMessages');
 const userInput = document.getElementById('userInput');
 const sendButton = document.getElementById('sendButton');
 const clearButton = document.getElementById('clearButton');
-const historyButton = document.getElementById('historyButton');
 
 // Add event listeners
 sendButton.addEventListener('click', sendMessage);
@@ -21,7 +20,6 @@ userInput.addEventListener('keypress', (e) => {
     }
 });
 clearButton.addEventListener('click', clearConversation);
-historyButton.addEventListener('click', showConversationHistory);
 
 // Function to add a message to the chat
 function addMessage(content, isUser = false) {
@@ -161,53 +159,6 @@ async function clearConversation() {
         } catch (error) {
             console.error('❌ Error starting new conversation:', error);
         }
-    }
-}
-
-// Function to show conversation history
-async function showConversationHistory() {
-    try {
-        const currentUrl = window.location.origin;
-        const historyUrl = `${currentUrl}/api/conversations`;
-        
-        console.log('📚 Loading conversation history...');
-        
-        const response = await fetch(historyUrl);
-        
-        if (response.ok) {
-            const data = await response.json();
-            
-            if (data.conversations && Object.keys(data.conversations).length > 0) {
-                console.log('✅ Found conversations:', Object.keys(data.conversations).length);
-                
-                // Create a simple history display
-                let historyText = '📚 **Conversation History:**\n\n';
-                
-                Object.keys(data.conversations).forEach((sessionId, index) => {
-                    const conversation = data.conversations[sessionId];
-                    const messages = Object.values(conversation);
-                    const userMessages = messages.filter(msg => msg.role === 'user').length;
-                    const aiMessages = messages.filter(msg => msg.role === 'assistant').length;
-                    
-                    historyText += `**Conversation ${index + 1}:**\n`;
-                    historyText += `Session: ${sessionId.substring(0, 20)}...\n`;
-                    historyText += `Messages: ${userMessages} user, ${aiMessages} AI\n\n`;
-                });
-                
-                // Show history in a simple way (you could make this a modal)
-                alert(historyText);
-                
-            } else {
-                alert('📚 No previous conversations found.');
-            }
-        } else {
-            console.error('❌ Error loading conversation history');
-            alert('❌ Could not load conversation history.');
-        }
-        
-    } catch (error) {
-        console.error('❌ Error showing conversation history:', error);
-        alert('❌ Error loading conversation history.');
     }
 }
 
