@@ -7,6 +7,9 @@ const OpenAI = require('openai');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// For Vercel serverless functions
+const isVercel = process.env.VERCEL === '1';
+
 // Initialize OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -243,15 +246,29 @@ app.get('/api/health', (req, res) => {
   res.json(health);
 });
 
+// Catch-all route for any unmatched requests
+app.use('*', (req, res) => {
+  console.log(`❌ 404 - Route not found: ${req.method} ${req.originalUrl}`);
+  res.status(404).json({ 
+    error: 'Route not found',
+    method: req.method,
+    url: req.originalUrl,
+    availableRoutes: ['/api/chat', '/api/health', '/api/conversation/:sessionId', '/']
+  });
+});
+
 // For Vercel deployment, export the app
-if (process.env.NODE_ENV !== 'production') {
+if (!isVercel) {
+  // Local development
   app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log('Make sure to set your OPENAI_API_KEY in the .env file');
   });
 } else {
-  // For Vercel production, just export the app
+  // Vercel production
   console.log('🚀 Server exported for Vercel deployment');
+  console.log('Environment:', process.env.NODE_ENV);
+  console.log('OpenAI Key Set:', !!process.env.OPENAI_API_KEY);
 }
 
 module.exports = app; 
