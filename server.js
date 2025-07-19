@@ -190,5 +190,6 @@ app.get('/api/conversations/raw', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  console.log('This server serves both frontend and backend');
   console.log('Make sure to set your OPENAI_API_KEY in the .env file');
 }); 
