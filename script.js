@@ -1,163 +1,114 @@
-document.addEventListener('DOMContentLoaded', function() {
-    const chatMessages = document.getElementById('chatMessages');
-    const userInput = document.getElementById('userInput');
-    const sendButton = document.getElementById('sendButton');
+// Generate a unique session ID for this conversation
+const sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
-    // Fixed bot responses
-    const botResponses = {
-        greetings: [
-            "Hello! How can I help you today?",
-            "Hi there! What can I assist you with?",
-            "Greetings! How may I be of service?"
-        ],
-        help: [
-            "I'm here to help! What would you like to know?",
-            "I can assist you with various topics. What do you need help with?",
-            "Feel free to ask me anything!"
-        ],
-        weather: [
-            "I can't check the weather in real-time, but I'd recommend checking a weather app or website for accurate information.",
-            "For current weather conditions, you might want to check a weather service online.",
-            "I don't have access to real-time weather data, but I can help you with other questions!"
-        ],
-        time: [
-            `The current time is ${new Date().toLocaleTimeString()}.`,
-            `It's currently ${new Date().toLocaleTimeString()}.`,
-            `Right now it's ${new Date().toLocaleTimeString()}.`
-        ],
-        thanks: [
-            "You're welcome! Is there anything else I can help you with?",
-            "Glad I could help! Let me know if you need anything else.",
-            "My pleasure! Feel free to ask more questions."
-        ],
-        goodbye: [
-            "Goodbye! Have a great day!",
-            "See you later! Take care!",
-            "Farewell! Come back anytime!"
-        ],
-        default: [
-            "That's interesting! Tell me more.",
-            "I'm not sure I understand. Could you rephrase that?",
-            "Interesting question! What else would you like to know?",
-            "I'm here to chat! What's on your mind?"
-        ]
-    };
+// DOM elements
+const chatMessages = document.getElementById('chatMessages');
+const userInput = document.getElementById('userInput');
+const sendButton = document.getElementById('sendButton');
 
-    function getBotResponse(userMessage) {
-        const message = userMessage.toLowerCase();
-        
-        // Check for different types of messages
-        if (message.includes('hello') || message.includes('hi') || message.includes('hey')) {
-            return getRandomResponse(botResponses.greetings);
-        } else if (message.includes('help') || message.includes('assist')) {
-            return getRandomResponse(botResponses.help);
-        } else if (message.includes('weather')) {
-            return getRandomResponse(botResponses.weather);
-        } else if (message.includes('time') || message.includes('what time')) {
-            return getRandomResponse(botResponses.time);
-        } else if (message.includes('thank') || message.includes('thanks')) {
-            return getRandomResponse(botResponses.thanks);
-        } else if (message.includes('bye') || message.includes('goodbye') || message.includes('see you')) {
-            return getRandomResponse(botResponses.goodbye);
-        } else {
-            return getRandomResponse(botResponses.default);
-        }
+// Add event listeners
+sendButton.addEventListener('click', sendMessage);
+userInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        sendMessage();
     }
+});
 
-    function getRandomResponse(responses) {
-        return responses[Math.floor(Math.random() * responses.length)];
-    }
+// Function to add a message to the chat
+function addMessage(content, isUser = false) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+    
+    const messageContent = document.createElement('div');
+    messageContent.className = 'message-content';
+    messageContent.textContent = content;
+    
+    const messageTime = document.createElement('div');
+    messageTime.className = 'message-time';
+    messageTime.textContent = new Date().toLocaleTimeString();
+    
+    messageDiv.appendChild(messageContent);
+    messageDiv.appendChild(messageTime);
+    
+    chatMessages.appendChild(messageDiv);
+    
+    // Scroll to bottom
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
 
-    function addMessage(content, isUser = false) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
-        
-        const messageContent = document.createElement('div');
-        messageContent.className = 'message-content';
-        messageContent.textContent = content;
-        
-        const messageTime = document.createElement('div');
-        messageTime.className = 'message-time';
-        messageTime.textContent = new Date().toLocaleTimeString();
-        
-        messageDiv.appendChild(messageContent);
-        messageDiv.appendChild(messageTime);
-        
-        chatMessages.appendChild(messageDiv);
-        
-        // Scroll to bottom
+// Function to send message to backend
+async function sendMessage() {
+    const message = userInput.value.trim();
+    
+    if (!message) return;
+    
+    // Add user message to chat
+    addMessage(message, true);
+    
+    // Clear input
+    userInput.value = '';
+    
+    // Disable input while processing
+    userInput.disabled = true;
+    sendButton.disabled = true;
+    
+    try {
+        // Show typing indicator
+        const typingDiv = document.createElement('div');
+        typingDiv.className = 'message bot-message typing';
+        typingDiv.innerHTML = '<div class="message-content">🤖 AI is typing...</div>';
+        chatMessages.appendChild(typingDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-
-    function handleUserInput() {
-        const message = userInput.value.trim();
         
-        if (message === '') return;
+        // Send message to backend
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                message: message,
+                sessionId: sessionId
+            })
+        });
         
-        // Add user message
-        addMessage(message, true);
-        
-        // Clear input
-        userInput.value = '';
-        
-        // Simulate typing delay
-        setTimeout(() => {
-            const botResponse = getBotResponse(message);
-            addMessage(botResponse, false);
-        }, 500);
-    }
-
-    function getSessionId() {
-        let sessionId = localStorage.getItem('chatbot_session_id');
-        if (!sessionId) {
-            sessionId = Math.random().toString(36).substr(2, 9) + Date.now();
-            localStorage.setItem('chatbot_session_id', sessionId);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
-        return sessionId;
-    }
-
-    document.getElementById('sendButton').addEventListener('click', sendMessage);
-    document.getElementById('userInput').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') sendMessage();
-    });
-
-    async function sendMessage() {
-        const userInput = document.getElementById('userInput');
-        const message = userInput.value.trim();
-        if (!message) return;
-        appendMessage('user', message, 'Just now');
-        userInput.value = '';
-        userInput.disabled = true;
-        document.getElementById('sendButton').disabled = true;
-        try {
-            const res = await fetch('http://localhost:3000/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message, sessionId: getSessionId() })
-            });
-            const data = await res.json();
-            if (data.reply) {
-                appendMessage('bot', data.reply, 'Just now');
-            } else {
-                appendMessage('bot', 'Sorry, I could not get a response.', 'Just now');
-            }
-        } catch (err) {
-            appendMessage('bot', 'Error connecting to server.', 'Just now');
+        
+        const data = await response.json();
+        
+        // Remove typing indicator
+        chatMessages.removeChild(typingDiv);
+        
+        // Add AI response to chat
+        addMessage(data.response);
+        
+    } catch (error) {
+        console.error('Error:', error);
+        
+        // Remove typing indicator
+        const typingDiv = document.querySelector('.typing');
+        if (typingDiv) {
+            chatMessages.removeChild(typingDiv);
         }
+        
+        // Show error message
+        addMessage('Sorry, I encountered an error. Please try again.');
+    } finally {
+        // Re-enable input
         userInput.disabled = false;
-        document.getElementById('sendButton').disabled = false;
+        sendButton.disabled = false;
         userInput.focus();
     }
+}
 
-    function appendMessage(sender, text, time) {
-        const chatMessages = document.getElementById('chatMessages');
-        const msgDiv = document.createElement('div');
-        msgDiv.className = 'message ' + (sender === 'user' ? 'user-message' : 'bot-message');
-        msgDiv.innerHTML = `<div class="message-content">${text}</div><div class="message-time">${time}</div>`;
-        chatMessages.appendChild(msgDiv);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+// Add some CSS for typing indicator
+const style = document.createElement('style');
+style.textContent = `
+    .typing .message-content {
+        font-style: italic;
+        color: #666;
     }
-
-    // Focus on input when page loads
-    userInput.focus();
-}); 
+`;
+document.head.appendChild(style); 
