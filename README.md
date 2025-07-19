@@ -58,7 +58,7 @@ chatbot/
 ├── index.html          # Frontend HTML
 ├── style.css           # CSS styles
 ├── script.js           # Frontend JavaScript
-├── server.js           # Node.js backend server
+├── server.js           # Node.js server (Port 3000)
 ├── package.json        # Dependencies
 ├── .env               # Environment variables
 └── README.md          # This file
