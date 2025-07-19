@@ -35,7 +35,13 @@ body {
     align-items: center;
 }
 
-.clear-button {
+.header-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.clear-button,
+.history-button {
     background: rgba(255, 255, 255, 0.2);
     border: 1px solid rgba(255, 255, 255, 0.3);
     color: white;
@@ -46,7 +52,8 @@ body {
     transition: all 0.3s ease;
 }
 
-.clear-button:hover {
+.clear-button:hover,
+.history-button:hover {
     background: rgba(255, 255, 255, 0.3);
     transform: translateY(-1px);
 }
